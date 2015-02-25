@@ -12,7 +12,7 @@
  *********************************************************************
  * BUTTON_SIZE - determining the size of game_window + buttons + etc.
  *********************************************************************
- * GAME_PORT - this is the port by whick game client try to connect
+ * GAME_PORT - this is the port by which game client try to connect
  *********************************************************************/
 #define GAME_SIZE 8
 #define BUTTON_SIZE 35
@@ -30,14 +30,13 @@
 /* enum to send and reveive about type of msg to/from the server */
 enum info{
     MOVE_MAKE = 0,
-    MOVE_BEATEN = 1,
-    LOST_GAME = 2,
-    ELSE_DISCONNECT = 3,
-    FULL_SERVER = 4,
-    CLIENT_CONNECTED = 5,
-    CLIENT_SECOND_CONNECTED = 6,
-    YOUR_TURN_IS = 7
-    //TODO - add / edit if neccesary in development
+    LOST_GAME = 1,
+    ELSE_DISCONNECT = 2,
+    FULL_SERVER = 3,
+    CLIENT_CONNECTED = 4,
+    CLIENT_SECOND_CONNECTED = 5,
+    YOUR_TURN_IS = 6
+    //TODO - add/edit if neccesary in development, remember to add this to server heading too
 };
 
 
@@ -48,10 +47,10 @@ public:
     char y_old;     // old 'y' position of draught
     char x_new;     // new 'x' position of draught
     char y_new;     // new 'y' position of draught
-    char x_beat;  // 'x' position of beated draught, if none=-1
-    char y_beat;  // 'y' position of beated draught
+    char x_beat;    // 'x' position of beated draught, if none=-1    /* FOR FUTURE USE */
+    char y_beat;    // 'y' position of beated draught                /* F.E. LEAPS     */
     info happened;     // 2 server about client's state | definition above^
-    //standard konstruktor
+    /* standard konstruktor */
     MsgAboutGame()
     {
         x_old = y_old = x_new = y_new = x_beat = y_beat = 0;

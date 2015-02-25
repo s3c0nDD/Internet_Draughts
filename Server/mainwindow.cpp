@@ -65,7 +65,6 @@ void MainWindow::onNewConnection()
             memcpy(buffer, &message, sizeof(MsgAboutGame));
             QTcpSocket *tmp = this->server->nextPendingConnection();
             tmp->write(buffer, sizeof(MsgAboutGame));
-            //tmp->disconnectFromHost();
             tmp = NULL;
         }
     }
@@ -144,25 +143,50 @@ void MainWindow::readAnswer()   /* reads data sent from clients */
                 this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
             }; break;
 
-        case LOST_GAME:
-        {
-            this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
-            /* here we print info on server's plainTextEdit */
-            if(msg.x_old < 0)
+            case LOST_GAME:
             {
-                ui->plainTextEdit->appendPlainText(QString("GAME OVER! SENT FROM ")
-                                                   + QString::number(id_sender));
-            } else {
-                ui->plainTextEdit->appendPlainText(QString("moved from  ") + QString::number(msg.x_old)
-                                                   + QString(":") + QString::number(msg.y_old)
-                                                   + QString("  =>  ") + QString::number(msg.x_new)
-                                                   + QString(":") + QString::number(msg.y_new));
-            }
-            MsgAboutGame msg2;
-            msg2.happened = ELSE_DISCONNECT;
-            memcpy(buf, &msg2, sizeof(MsgAboutGame));
-            this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
-        }; break;
+                this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
+                /* here we print info on server's plainTextEdit */
+                if(msg.x_old < 0)
+                {
+                    ui->plainTextEdit->appendPlainText(QString("GAME OVER! SENT FROM ")
+                                                       + QString::number(id_sender));
+                } else {
+                    ui->plainTextEdit->appendPlainText(QString("moved from  ") + QString::number(msg.x_old)
+                                                       + QString(":") + QString::number(msg.y_old)
+                                                       + QString("  =>  ") + QString::number(msg.x_new)
+                                                       + QString(":") + QString::number(msg.y_new));
+                }
+                MsgAboutGame msg2;
+                msg2.happened = ELSE_DISCONNECT;
+                memcpy(buf, &msg2, sizeof(MsgAboutGame));
+                this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
+            }; break;
+
+            case ELSE_DISCONNECT:
+            {
+                //nothing
+            }; break;
+
+            case FULL_SERVER:
+            {
+                //nothing
+            }; break;
+
+            case CLIENT_CONNECTED:
+            {
+                //nothing
+            }; break;
+
+            case CLIENT_SECOND_CONNECTED:
+            {
+                //nothing
+            }; break;
+
+            case YOUR_TURN_IS:
+            {
+                //nothing
+            }; break;
         }
     }
 }

@@ -14,13 +14,12 @@
 /* structure to send info to the server */
 enum info{
     MOVE_MAKE = 0,
-    MOVE_BEATEN = 1,
-    LOST_GAME = 2,
-    ELSE_DISCONNECT = 3,
-    FULL_SERVER = 4,
-    CLIENT_CONNECTED = 5,
-    CLIENT_SECOND_CONNECTED = 6,
-    YOUR_TURN_IS = 7
+    LOST_GAME = 1,
+    ELSE_DISCONNECT = 2,
+    FULL_SERVER = 3,
+    CLIENT_CONNECTED = 4,
+    CLIENT_SECOND_CONNECTED = 5,
+    YOUR_TURN_IS = 6
     //TODO - add / edit if neccesary in development
 };
 
@@ -35,7 +34,7 @@ public:
     char x_beat;     // 'x' position of beated draught, if none=-1
     char y_beat;     // 'y' position of beated draught
     info happened;   // 2 server about client's state | definition above^
-    //standard konstruktor
+    /* standard konstruktor */
     MsgAboutGame()
     {
         x_old = y_old = x_new = y_new = x_beat = y_beat = 0;

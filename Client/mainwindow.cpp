@@ -15,7 +15,7 @@ MainWindow::MainWindow(QWidget *parent) :
     QWidget *mainWidget = new QWidget;
     QGridLayout *controlsLayout = new QGridLayout;
 
-    for(int i = 0; i < GAME_SIZE; i++)
+    for (int i = 0; i < GAME_SIZE; i++)
     {
         for (int j = 0; j < GAME_SIZE; j++)
         {
@@ -38,8 +38,6 @@ MainWindow::MainWindow(QWidget *parent) :
     buttonConnect->resize(GAME_SIZE * BUTTON_SIZE, BUTTON_SIZE);
     buttonConnect->move(0, (GAME_SIZE + 1) * BUTTON_SIZE);
 
-    //socket = new QTcpSocket(this);    // <--- this now in "onPushButtonConnectClicked()"
-
     controlsLayout->addWidget(addressLineEdit);
     controlsLayout->addWidget(buttonConnect);
 
@@ -47,8 +45,7 @@ MainWindow::MainWindow(QWidget *parent) :
     mainWidget->setLayout(controlsLayout);
     setCentralWidget(mainWidget);
     delete controlsLayout;
-    enableDisabledGame(false);       // FINALLY SET FALSE HERE //HERE WE CHOOSED SINGLE/MULTI PLAYER
-    //this->game_startNew();          // FINALLY NOT THIS LINE HERE // DUNNO IF WORKS NOW WITH SOCKETS "ON"
+    enableDisabledGame(false);
     mainWidget->show();
 }
 
@@ -57,28 +54,16 @@ MainWindow::~MainWindow()
 {
     for (int i = 0; i < GAME_SIZE; i++)
         delete* xy[i];
-    //delete* xy;   // <= this makes programme crash
-                    // ... so how to repair it ???
-//    delete addressLineEdit;
-//    delete buttonConnect;
-//    delete ui;
-//    socket = NULL;
-//    delete socket;
 }
 
 
 void MainWindow::onPushButtonGameClicked()
 {
     buttons_clicked++;
+    game_gameoverCheck();
     for (int i = 0; i < GAME_SIZE; i++) {
         for (int j = 0; j < GAME_SIZE; j++) {
-            if(turn == 'R' && game_running == 1){
-                game_gameoverCheck();
-                //game_clearBoard();        // <-- clears 2nd guy board after 1st move
-                //socket->disconnectFromHost();     // <-- disconnects game immedately after 1st move
-            }
-
-            if(xy[i][j] == QObject::sender())
+            if (xy[i][j] == QObject::sender())
             {
                 if (buttons_clicked == 1)
                 {
@@ -108,11 +93,10 @@ void MainWindow::onPushButtonGameClicked()
                     {
                         game_moveDo(x1,y1,x2,y2);
                         game_kingCheck();
-                        //game_gameoverCheck();     // TODO
 
                         this->enableDisabledGame(false);    //disable game
 
-                        // SEND TO SERVER
+                        // SEND TO SERVER what we have done
                         MsgAboutGame message;
                         message.happened = MOVE_MAKE;
                         message.x_old = x1;
@@ -122,8 +106,6 @@ void MainWindow::onPushButtonGameClicked()
                         char buffer[sizeof(MsgAboutGame)];
                         memcpy(buffer, &message, sizeof(MsgAboutGame));
                         this->socket->write(buffer, sizeof(MsgAboutGame));
-
-                        //game_gameoverCheck();     // TODO
                     }
                     buttons_clicked = 0;
                 }
@@ -136,8 +118,6 @@ void MainWindow::onPushButtonGameClicked()
 void MainWindow::onPushButtonConnectClicked()
 {
     socket = new QTcpSocket(this);
-    //this->buttonConnect->setEnabled(false);
-    //this->addressLineEdit->setEnabled(false);
     if (this->socket->state() == QAbstractSocket::UnconnectedState)
     {
         QHostInfo::lookupHost(this->addressLineEdit->text(), this, SLOT(hostLookedUp(QHostInfo)));
@@ -158,7 +138,7 @@ void MainWindow::hostLookedUp(const QHostInfo& info)
         Box.exec();
         buttonConnect->setEnabled(true);
     }
-    else    //connected
+    else    // socket slots making and trying to connect
     {
         connect(this->socket, SIGNAL(connected()), this, SLOT(onConnect()));
         connect(this->socket, SIGNAL(disconnected()), this, SLOT(onDisconnect()));
@@ -173,7 +153,6 @@ void MainWindow::onConnect()
 {
     this->addressLineEdit->setEnabled(false);   // block address line
     this->buttonConnect->setText("Disconnect from the game");
-    //enableDisabledGame(true);                   // enable the game
     this->buttonConnect->setEnabled(true);
 }
 
@@ -185,7 +164,6 @@ void MainWindow::onDisconnect()
     this->buttonConnect->setEnabled(true);
     game_clearBoard();
     enableDisabledGame(false);
-//    this->socket = NULL;      //   <-- crashes 100% if is 3rd client wanting connection
 }
 
 
@@ -194,8 +172,6 @@ void MainWindow::socketError(QAbstractSocket::SocketError)
     QMessageBox Box;
     Box.setText("Socket error:\n" + socket->errorString());
     Box.exec();
-    //this->buttonConnect->setEnabled(true);
-    //this->addressLineEdit->setEnabled(true);
     this->socket->close();
 }
 
@@ -204,50 +180,32 @@ void MainWindow::readMessage()
 {
     MsgAboutGame msg;
     char buf[sizeof(MsgAboutGame)];
-    while(this->socket->read(buf, sizeof(MsgAboutGame)) > 0)
+    while (this->socket->read(buf, sizeof(MsgAboutGame)) > 0)
     {
         memcpy(&msg, buf, sizeof(MsgAboutGame));
 
-        switch(msg.happened)    // <--------   WHAT MESSAGE RECEIVED FROM SERVER ??
+        switch (msg.happened)    // <--------   WHAT MESSAGE RECEIVED FROM SERVER ??
         {
-            case MOVE_MAKE:     // nr 0
+            case MOVE_MAKE:
             {
-//                if(msg.x_old == -1)     /* <----  if there isnt this - lost one will crash */
-                //if(game_running == 0)
-//                {
-//                    //game_gameoverCheck();
-//                    game_clearBoard();
-//                    this->socket->disconnectFromHost();
-//                    this->socket->close();
-//                }
-//                else
-//                {
-                    game_moveCheck(msg.x_old,msg.y_old,msg.x_new,msg.y_new);
-                    game_moveDo(msg.x_old,msg.y_old,msg.x_new,msg.y_new);
-                    game_kingCheck();
-                    game_gameoverCheck();
-//                }
+                game_moveCheck(msg.x_old,msg.y_old,msg.x_new,msg.y_new);
+                game_moveDo(msg.x_old,msg.y_old,msg.x_new,msg.y_new);
+                game_kingCheck();
+                game_gameoverCheck();
             }; break;
 
-            case MOVE_BEATEN:       // nr 1     //99% this can be erased :)
-            {
-            }; break;
-
-            case FULL_SERVER:       // nr 4
+            case FULL_SERVER:
             {
                 QMessageBox Box;
                 Box.setText("Sorry, the server is already full.");
                 Box.exec();
-                //this->addressLineEdit->setEnabled(true);
-                //this->buttonConnect->setText("Connect to the server above");
-                //this->buttonConnect->setEnabled(true);
                 this->socket->disconnectFromHost();
                 this->socket->close();
             }; break;
 
             case ELSE_DISCONNECT:   // nr 3
             {
-                if(game_running == 1)
+                if (game_running == 1)
                 {
                     QMessageBox Box;
                     Box.setText("Sorry, the opponent left the game.");
@@ -268,18 +226,13 @@ void MainWindow::readMessage()
                 this->socket->close();
             }; break;
 
-            case LOST_GAME:         // nr 2  // probably no sense at all... //maybe have sense!! (80%)
+            case LOST_GAME:
             {
                 game_running = 0;
                 QMessageBox Box;
                 Box.setText("GAME OVER!");
                 Box.exec();
-//                if (game_running == 0)
-//                {
-//                    QMessageBox Box;
-//                    Box.setText("GAME OVER. Opponent won!.");
-//                    Box.exec();
-//                }
+
                 game_clearBoard();
                 this->addressLineEdit->setEnabled(true);
                 this->buttonConnect->setText("Connect to the server above");
@@ -289,13 +242,13 @@ void MainWindow::readMessage()
                 this->socket->close();
             }; break;
 
-            case CLIENT_CONNECTED:  // nr 5
+            case CLIENT_CONNECTED:
             {
                 this->buttonConnect->setEnabled(false);
                 this->addressLineEdit->setEnabled(false);
             }; break;
 
-            case CLIENT_SECOND_CONNECTED:      // nr 6
+            case CLIENT_SECOND_CONNECTED:
             {
                 this->buttonConnect->setEnabled(false);
                 this->addressLineEdit->setEnabled(false);;
@@ -313,9 +266,9 @@ void MainWindow::readMessage()
 
 void MainWindow::enableDisabledGame(bool _enable)
 {
-    for(int i = 0; i < GAME_SIZE; i++)
+    for (int i = 0; i < GAME_SIZE; i++)
     {
-        for(int j = 0; j < GAME_SIZE; j++)
+        for (int j = 0; j < GAME_SIZE; j++)
         {
             xy[i][j]->setEnabled(_enable);
         }
@@ -351,7 +304,7 @@ void MainWindow::game_startNew()
     xy[2][5]->setText("b");
     xy[2][3]->setText("b");
     xy[5][2]->setText("r");
-    xy[5][4]->setText("r");
+    xy[5][4]->setText("r");    //*/
 }
 
 
@@ -613,31 +566,16 @@ void MainWindow::game_gameoverCheck()
         {
             if (xy[i][j]->text() == "r" || xy[i][j]->text() == "R")
                 remaining_r++;
-            if (xy[i][j]->text() == "r" || xy[i][j]->text() == "R")
+            if (xy[i][j]->text() == "b" || xy[i][j]->text() == "B")
                 remaining_b++;
         }
     }
 
-    if(remaining_b == 0 || remaining_r == 0)
+    if (remaining_b == 0 || remaining_r == 0)
     {
         game_running = 0;
 
-//        QMessageBox Box;
-//        if((remaining_b == 0 && turn == 'R') /*|| (remaining_b == 0 && turn == 'B')*/) {
-//            Box.setText("GAME OVER. Player 'B' won!");
-//            Box.exec();
-//        }
-//        else if((remaining_r == 0 && turn == 'B') /*|| (remaining_b == 0 && turn == 'R')*/){
-//            Box.setText("GAME OVER. Player 'R' won!");
-//            Box.exec();
-//        }
-//        else if((remaining_r == 0 && turn == 'B')) {
-//            Box.setText("Who won?");
-//            Box.exec();
-//        }
-        if((remaining_b == 0 || remaining_r == 0)) {
-//            Box.setText("GAME OVER!");
-//            Box.exec();
+        if (remaining_b == 0 || remaining_r == 0) {
             MsgAboutGame message;
             message.happened = LOST_GAME;
             message.x_old = x1;
@@ -648,13 +586,5 @@ void MainWindow::game_gameoverCheck()
             memcpy(buffer, &message, sizeof(MsgAboutGame));
             this->socket->write(buffer, sizeof(MsgAboutGame));
         }
-
-        //if(buttons_clicked==0)
-        //    this->socket->disconnectFromHost();   // <-- causes other player to not see who wins
-//        this->addressLineEdit->setEnabled(true);
-//        this->buttonConnect->setText("Connect to the server above");
-//        this->buttonConnect->setEnabled(true);
-//        game_clearBoard();                    // <-- rly?
-//        enableDisabledGame(false);
     }
 }
