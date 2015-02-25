@@ -20,5 +20,5 @@ $RECYCLE.BIN/
 # Folders with builds, especially QT + some others
 /build*
 
-/Client/Client.pro.user
-/Server/Server.pro.user
+/Client/Client.pro.user*
+/Server/Server.pro.user*

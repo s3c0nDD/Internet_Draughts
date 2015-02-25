@@ -7,32 +7,40 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QString>
-#include <stdlib.h>
 #include <QProcess>
+#include <stdlib.h>
 
 
 /* structure to send info to the server */
 enum info{
-
-    MOVE = 0,
-    WIN = 1,
-    LOST = 2,
-    OPPONENT_DISCONNECT = 3,
-    FULL = 4,
-    OTHERS = 5   //TODO - add / edit if neccesary in development
-
+    MOVE_MAKE = 0,
+    MOVE_BEATEN = 1,
+    LOST_GAME = 2,
+    ELSE_DISCONNECT = 3,
+    FULL_SERVER = 4,
+    CLIENT_CONNECTED = 5,
+    CLIENT_SECOND_CONNECTED = 6,
+    YOUR_TURN_IS = 7
+    //TODO - add / edit if neccesary in development
 };
 
 
-class MsgAboutGame{  //TEMPORARY, may change
+class MsgAboutGame{
 
 public:
     char x_old;     // old 'x' position of draught
     char y_old;     // old 'y' position of draught
     char x_new;     // new 'x' position of draught
     char y_new;     // new 'y' position of draught
+    char x_beat;     // 'x' position of beated draught, if none=-1
+    char y_beat;     // 'y' position of beated draught
     info happened;   // 2 server about client's state | definition above^
-    //info infFROMsrv? - info FROM server received by client
+    //standard konstruktor
+    MsgAboutGame()
+    {
+        x_old = y_old = x_new = y_new = x_beat = y_beat = 0;
+        happened = MOVE_MAKE;
+    }
 };
 
 
@@ -58,7 +66,7 @@ private:
 private slots:
     void onNewConnection();
     void onDisconnected();
-    void read();
+    void readAnswer();
 };
 
 #endif // MAINWINDOW_H

@@ -15,34 +15,30 @@ MainWindow::MainWindow(QWidget *parent) :
     QWidget *mainWidget = new QWidget;
     QGridLayout *controlsLayout = new QGridLayout;
 
-    int temp = 1;
     for(int i = 0; i < GAME_SIZE; i++)
     {
         for (int j = 0; j < GAME_SIZE; j++)
         {
-            if(temp <= GAME_SIZE*GAME_SIZE)
-            {
-                xy[i][j] = new QPushButton();
-                xy[i][j]->resize(BUTTON_SIZE, BUTTON_SIZE);
-                xy[i][j]->move(BUTTON_SIZE*j, BUTTON_SIZE*i);
-                xy[i][j]->setText(" ");
-                controlsLayout->addWidget(xy[i][j], i, j);
-                connect(xy[i][j], SIGNAL(clicked()), this, SLOT(onPushButtonGameClicked()));
-                temp++; // <== really needed??
-            }
+            xy[i][j] = new QPushButton();
+            xy[i][j]->resize(BUTTON_SIZE, BUTTON_SIZE);
+            xy[i][j]->move(BUTTON_SIZE*j, BUTTON_SIZE*i);
+            xy[i][j]->setText(" ");
+            controlsLayout->addWidget(xy[i][j], i, j);
+            connect(xy[i][j], SIGNAL(clicked()), this, SLOT(onPushButtonGameClicked()));
         }
     }
 
     addressLineEdit = new QLineEdit(this);
     addressLineEdit->resize(GAME_SIZE * BUTTON_SIZE, BUTTON_SIZE);
     addressLineEdit->move(0, GAME_SIZE * BUTTON_SIZE);
+    addressLineEdit->setText("127.0.0.1");
 
     buttonConnect = new QPushButton(this);
     buttonConnect->setText("Connect to the server above");
     buttonConnect->resize(GAME_SIZE * BUTTON_SIZE, BUTTON_SIZE);
     buttonConnect->move(0, (GAME_SIZE + 1) * BUTTON_SIZE);
 
-    socket = new QTcpSocket(this);
+    //socket = new QTcpSocket(this);    // <--- this now in "onPushButtonConnectClicked()"
 
     controlsLayout->addWidget(addressLineEdit);
     controlsLayout->addWidget(buttonConnect);
@@ -51,8 +47,8 @@ MainWindow::MainWindow(QWidget *parent) :
     mainWidget->setLayout(controlsLayout);
     setCentralWidget(mainWidget);
     delete controlsLayout;
-    enableDisabledGame(true);       // FINALLY SET FALSE HERE
-    this->game_startNew();          // FINALLY NOT THIS LINE HERE
+    enableDisabledGame(false);       // FINALLY SET FALSE HERE //HERE WE CHOOSED SINGLE/MULTI PLAYER
+    //this->game_startNew();          // FINALLY NOT THIS LINE HERE // DUNNO IF WORKS NOW WITH SOCKETS "ON"
     mainWidget->show();
 }
 
@@ -63,10 +59,11 @@ MainWindow::~MainWindow()
         delete* xy[i];
     //delete* xy;   // <= this makes programme crash
                     // ... so how to repair it ???
-    delete addressLineEdit;
-    delete buttonConnect;
-    delete ui;
-    delete socket;
+//    delete addressLineEdit;
+//    delete buttonConnect;
+//    delete ui;
+//    socket = NULL;
+//    delete socket;
 }
 
 
@@ -75,6 +72,12 @@ void MainWindow::onPushButtonGameClicked()
     buttons_clicked++;
     for (int i = 0; i < GAME_SIZE; i++) {
         for (int j = 0; j < GAME_SIZE; j++) {
+            if(turn == 'R' && game_running == 1){
+                game_gameoverCheck();
+                //game_clearBoard();        // <-- clears 2nd guy board after 1st move
+                //socket->disconnectFromHost();     // <-- disconnects game immedately after 1st move
+            }
+
             if(xy[i][j] == QObject::sender())
             {
                 if (buttons_clicked == 1)
@@ -101,41 +104,40 @@ void MainWindow::onPushButtonGameClicked()
                         Box.exec();
                         x1 = -1, y1 = -1, x2 = -1, y2 = -1;
                     }
-                    else
+                    else    //if move is LEGAL
                     {
                         game_moveDo(x1,y1,x2,y2);
                         game_kingCheck();
-                        game_gameoverCheck();
+                        //game_gameoverCheck();     // TODO
+
+                        this->enableDisabledGame(false);    //disable game
+
+                        // SEND TO SERVER
+                        MsgAboutGame message;
+                        message.happened = MOVE_MAKE;
+                        message.x_old = x1;
+                        message.y_old = y1;
+                        message.x_new = x2;
+                        message.y_new = y2;
+                        char buffer[sizeof(MsgAboutGame)];
+                        memcpy(buffer, &message, sizeof(MsgAboutGame));
+                        this->socket->write(buffer, sizeof(MsgAboutGame));
+
+                        //game_gameoverCheck();     // TODO
                     }
                     buttons_clicked = 0;
                 }
             }
         }
     }
-//    for(int i = 0; i < GAME_SIZE; i++)
-//      {
-//        for(int j = 0; j < GAME_SIZE; j++)
-//          {
-//            if(xy[i][j]==QObject::sender())
-//              {
-//                xy[i][j]->setText($);//set letter[wWbB] on button
-//                message[0] = i+65;       // cause there are f.e. 8x8 places
-//                message[1] = j+65;       // and we need to "know" who is who
-//                message[2] = 'X';        // so modified and "sent"2serv is this
-//                ...ETC
-//               }
-//            //button[i][j]->setEnabled(false);
-//        }
-//    }
-//    this->socket->write(message, strlen(message));  // write to socket
-//    //enableDisable(false); // block the game for a turn....
 }
 
 
 void MainWindow::onPushButtonConnectClicked()
 {
-    this->buttonConnect->setEnabled(false);
-    this->addressLineEdit->setEnabled(false);
+    socket = new QTcpSocket(this);
+    //this->buttonConnect->setEnabled(false);
+    //this->addressLineEdit->setEnabled(false);
     if (this->socket->state() == QAbstractSocket::UnconnectedState)
     {
         QHostInfo::lookupHost(this->addressLineEdit->text(), this, SLOT(hostLookedUp(QHostInfo)));
@@ -156,7 +158,7 @@ void MainWindow::hostLookedUp(const QHostInfo& info)
         Box.exec();
         buttonConnect->setEnabled(true);
     }
-    else
+    else    //connected
     {
         connect(this->socket, SIGNAL(connected()), this, SLOT(onConnect()));
         connect(this->socket, SIGNAL(disconnected()), this, SLOT(onDisconnect()));
@@ -171,91 +173,141 @@ void MainWindow::onConnect()
 {
     this->addressLineEdit->setEnabled(false);   // block address line
     this->buttonConnect->setText("Disconnect from the game");
-    enableDisabledGame(true);                   // enable the game
+    //enableDisabledGame(true);                   // enable the game
     this->buttonConnect->setEnabled(true);
 }
 
 
 void MainWindow::onDisconnect()
 {
-    QMessageBox Box;
-    Box.setText("Disconnected from the game");
-    Box.exec();
-
     this->addressLineEdit->setEnabled(true);
     this->buttonConnect->setText("Connect to the server above");
     this->buttonConnect->setEnabled(true);
+    game_clearBoard();
     enableDisabledGame(false);
-    this->socket = NULL;
+//    this->socket = NULL;      //   <-- crashes 100% if is 3rd client wanting connection
 }
 
 
 void MainWindow::socketError(QAbstractSocket::SocketError)
 {
     QMessageBox Box;
-    Box.setText("Error while trying to connect:\n" + socket->errorString());
+    Box.setText("Socket error:\n" + socket->errorString());
     Box.exec();
-    this->buttonConnect->setEnabled(true);
-    this->addressLineEdit->setEnabled(true);
-    this->socket = NULL;
+    //this->buttonConnect->setEnabled(true);
+    //this->addressLineEdit->setEnabled(true);
+    this->socket->close();
 }
 
 
 void MainWindow::readMessage()
 {
     MsgAboutGame msg;
-    char buf[sizeof(msg)];
-    while(this->socket->read(buf, sizeof(msg)) > 0)
+    char buf[sizeof(MsgAboutGame)];
+    while(this->socket->read(buf, sizeof(MsgAboutGame)) > 0)
     {
-        memcpy(&msg, buf, sizeof(msg));
-    }
+        memcpy(&msg, buf, sizeof(MsgAboutGame));
 
-    switch(msg.type)    // ALL TO DO
-    {
-    case MOVE_MAKE:
-    {
-        QString tmp = xy[msg.x_old][msg.y_old]->text();
-        xy[msg.x_old][msg.y_old]->setText(" ");
-        xy[msg.x_new][msg.y_new]->setText(tmp);
-        if (msg.x_beat != GAME_SIZE*GAME_SIZE)
+        switch(msg.happened)    // <--------   WHAT MESSAGE RECEIVED FROM SERVER ??
         {
-            xy[msg.x_beat][msg.y_beat]->setText(" ");
+            case MOVE_MAKE:     // nr 0
+            {
+//                if(msg.x_old == -1)     /* <----  if there isnt this - lost one will crash */
+                //if(game_running == 0)
+//                {
+//                    //game_gameoverCheck();
+//                    game_clearBoard();
+//                    this->socket->disconnectFromHost();
+//                    this->socket->close();
+//                }
+//                else
+//                {
+                    game_moveCheck(msg.x_old,msg.y_old,msg.x_new,msg.y_new);
+                    game_moveDo(msg.x_old,msg.y_old,msg.x_new,msg.y_new);
+                    game_kingCheck();
+                    game_gameoverCheck();
+//                }
+            }; break;
+
+            case MOVE_BEATEN:       // nr 1     //99% this can be erased :)
+            {
+            }; break;
+
+            case FULL_SERVER:       // nr 4
+            {
+                QMessageBox Box;
+                Box.setText("Sorry, the server is already full.");
+                Box.exec();
+                //this->addressLineEdit->setEnabled(true);
+                //this->buttonConnect->setText("Connect to the server above");
+                //this->buttonConnect->setEnabled(true);
+                this->socket->disconnectFromHost();
+                this->socket->close();
+            }; break;
+
+            case ELSE_DISCONNECT:   // nr 3
+            {
+                if(game_running == 1)
+                {
+                    QMessageBox Box;
+                    Box.setText("Sorry, the opponent left the game.");
+                    Box.exec();
+                }
+                if (game_running == 0)
+                {
+                    QMessageBox Box;
+                    Box.setText("GAME OVER!");
+                    Box.exec();
+                }
+                game_clearBoard();
+                this->addressLineEdit->setEnabled(true);
+                this->buttonConnect->setText("Connect to the server above");
+                this->buttonConnect->setEnabled(true);
+                enableDisabledGame(false);
+                this->socket->disconnectFromHost();
+                this->socket->close();
+            }; break;
+
+            case LOST_GAME:         // nr 2  // probably no sense at all... //maybe have sense!! (80%)
+            {
+                game_running = 0;
+                QMessageBox Box;
+                Box.setText("GAME OVER!");
+                Box.exec();
+//                if (game_running == 0)
+//                {
+//                    QMessageBox Box;
+//                    Box.setText("GAME OVER. Opponent won!.");
+//                    Box.exec();
+//                }
+                game_clearBoard();
+                this->addressLineEdit->setEnabled(true);
+                this->buttonConnect->setText("Connect to the server above");
+                this->buttonConnect->setEnabled(true);
+                enableDisabledGame(false);
+                this->socket->disconnectFromHost();
+                this->socket->close();
+            }; break;
+
+            case CLIENT_CONNECTED:  // nr 5
+            {
+                this->buttonConnect->setEnabled(false);
+                this->addressLineEdit->setEnabled(false);
+            }; break;
+
+            case CLIENT_SECOND_CONNECTED:      // nr 6
+            {
+                this->buttonConnect->setEnabled(false);
+                this->addressLineEdit->setEnabled(false);;
+                this->game_startNew();
+            }; break;
+
+            case YOUR_TURN_IS:
+            {
+                this->enableDisabledGame(true);
+            }; break;
         }
-    }
-    case FULL_SERVER:
-    {
-        QMessageBox Box;
-        Box.setText("Sorry, the server is already full.");
-        Box.exec();
-        this->addressLineEdit->setEnabled(true);
-        this->buttonConnect->setText("Connect to the server above");
-        this->buttonConnect->setEnabled(true);
-        enableDisabledGame(false);
-        this->socket = NULL;
-    }
-    case ELSE_DISCONNECT:
-    {
-        QMessageBox Box;
-        Box.setText("Sorry, the opponent left the game.");
-        Box.exec();
-        this->addressLineEdit->setEnabled(true);
-        this->buttonConnect->setText("Connect to the server above");
-        this->buttonConnect->setEnabled(true);
-        enableDisabledGame(false);
-        this->socket = NULL;
-    }
-    case LOST_GAME:
-    {
-        QMessageBox Box;
-        Box.setText("Sorry, YOU LOST THE GAME.");
-        Box.exec();
-        this->addressLineEdit->setEnabled(true);
-        this->buttonConnect->setText("Connect to the server above");
-        this->buttonConnect->setEnabled(true);
-        enableDisabledGame(false);
-        this->socket = NULL;
-    }
-    }
+    } /* end while(this->socket->read(.....) ========= */
 }
 
 
@@ -279,18 +331,40 @@ void MainWindow::game_startNew()
     buttons_clicked = 0;
     x1 = -1, y1 = -1, x2 = -1, y2 = -1;
 
+    /*    FOR PLAYING    */
+//    for(int i = 0; i < GAME_SIZE; i++)
+//    {
+//        for(int j = 0; j < GAME_SIZE; j++)
+//        {
+//            if((i == 0 || i == 2) && (j%2 == 1))
+//                xy[i][j]->setText("b");
+//            if((i == 1) && (j%2 == 0))
+//                xy[i][j]->setText("b");
+//            if((i == 6) && (j%2 == 1))
+//                xy[i][j]->setText("r");
+//            if((i == 5 || i == 7) && (j%2 == 0))
+//                xy[i][j]->setText("r");
+//        }
+//    }
+
+    /*   TESTING ONLY!!!!!!!  */
+    xy[2][5]->setText("b");
+    xy[2][3]->setText("b");
+    xy[5][2]->setText("r");
+    xy[5][4]->setText("r");
+}
+
+
+void MainWindow::game_clearBoard()
+{
+    buttons_clicked = 0;
+    x1 = -1, y1 = -1, x2 = -1, y2 = -1;
+
     for(int i = 0; i < GAME_SIZE; i++)
     {
         for(int j = 0; j < GAME_SIZE; j++)
         {
-            if((i == 0 || i == 2) && (j%2 == 1))
-                xy[i][j]->setText("b");
-            if((i == 1) && (j%2 == 0))
-                xy[i][j]->setText("b");
-            if((i == 6) && (j%2 == 1))
-                xy[i][j]->setText("r");
-            if((i == 5 || i == 7) && (j%2 == 0))
-                xy[i][j]->setText("r");
+             xy[i][j]->setText(" ");
         }
     }
 }
@@ -298,7 +372,7 @@ void MainWindow::game_startNew()
 
 bool MainWindow::game_moveCheck(int row1, int column1, int row2, int column2)
 {
-    //it checks if a non-king piece is moving backwards.
+    // It checks if a non-king piece is moving backwards.
     if (xy[row1][column1]->text() != "B" && xy[row1][column1]->text() != "R")
     {
         if ((turn == 'B' && row2 < row1) || (turn == 'R' && row2 > row1))
@@ -308,52 +382,52 @@ bool MainWindow::game_moveCheck(int row1, int column1, int row2, int column2)
         }
     }
 
-    //It checks if the location the piece is moving to is already taken.
+    // It checks if the location the piece is moving to is already taken.
     if (xy[row2][column2]->text() != " ")
     {
         leap = false;
         return false;
     }
 
-    //It checks if location entered by the user contains a piece to be moved.
+    // It checks if location entered by the user contains a piece to be moved.
     if (xy[row1][column1]->text() == " ")
     {
         leap = false;
         return false;
     }
 
-    //It checks if the piece isn't moving diagonally.
+    // It checks if the piece isn't moving diagonally.
     if (column1 == column2 || row1 == row2)
     {
         leap = false;
         return false;
     }
 
-    //It checks if the piece is moving by more than 1 column and only 1 row
+    // It checks if the piece is moving by more than 1 column and only 1 row
     if ((column2 > column1 + 1 || column2 < column1 - 1) && (row2 == row1 + 1 || row2 == row1 - 1))
     {
         leap = false;
         return false;
     }
 
-    //It checks if the piece is leaping.
+    // It checks if the piece is leaping.
     if (row2 > row1 + 1 || row2 < row1 - 1)
     {
-        //It checks if the piece is leaping too far.
+        // It checks if the piece is leaping too far.
         if (row2 > row1 + 2 || row2 < row1 - 2)
         {
             leap = false;
             return false;
         }
 
-        //It checks if the piece isn't moving by exactly 2 columns
+        // It checks if the piece isn't moving by exactly 2 columns
         if (column2 != column1 + 2 && column2 != column1 - 2)
         {
             leap = false;
             return false;
         }
 
-        //It checks if the piece is leaping over another piece.
+        // It checks if the piece is leaping over another piece.
         if (row2 > row1 && column2 > column1)
         {
             if (xy[row2-1][column2-1]->text() == " ")
@@ -387,12 +461,12 @@ bool MainWindow::game_moveCheck(int row1, int column1, int row2, int column2)
             }
         }
 
-        //Piece is not leaping too far.
+        // Piece is not leaping too far.
         leap = true;
         return true;
     }
 
-    //Piece is not leaping.
+    // Piece is not leaping.
     leap = false;
     return true;
 }
@@ -445,7 +519,7 @@ void MainWindow::game_moveDo(int row1, int column1, int row2, int column2)
 
 void MainWindow::game_leapDo(int row1, int column1, int row2, int column2)
 {
-    //It removes the checker piece after leap.
+    // It removes the checker piece after (and if was!) leap.
     if (row2 > row1 && column2 > column1)
     {
         xy[row2-1][column2-1]->setText(" ");
@@ -463,7 +537,7 @@ void MainWindow::game_leapDo(int row1, int column1, int row2, int column2)
         xy[row2+1][column2+1]->setText(" ");
     }
 
-/*    //Asking if wanna do another leap, and if can - does it
+/*    // Asking if wanna do another leap, and if can - does it // NOT WORKING FOR NOW!
     QMessageBox::StandardButton reply;
     reply = QMessageBox::question(this, "Question", "Do you want to do another leap if you can?",
                                 QMessageBox::Yes|QMessageBox::No);
@@ -472,19 +546,19 @@ void MainWindow::game_leapDo(int row1, int column1, int row2, int column2)
         row1 = row2;
         column1 = column2;
         // ====== HERE SHOULD BE CLICKING NEXT LEAP IF WE HAVE CHOSEN TO =====
-//        for (int i = 0; i < GAME_SIZE; i++) {
-//            for (int j = 0; j < GAME_SIZE; j++) {
-//                if(xy[i][j] == QObject::sender())
-//                {
-//                    connect(xy[i][j],SIGNAL(clicked()), this,
-//                            SLOT(onPushButtonGameClickedForLeap(row1, column1)));
-//                    i = row2;
-//                    j = column2;
-//                    qDebug() << "jestesmy w LEAP row,col=" << i << "," << j;
-//                }
-//            }
-//        }
-//        xy[row1][column1]->clicked(true);
+        for (int i = 0; i < GAME_SIZE; i++) {
+            for (int j = 0; j < GAME_SIZE; j++) {
+                if(xy[i][j] == QObject::sender())
+                {
+                    connect(xy[i][j],SIGNAL(clicked()), this,
+                            SLOT(onPushButtonGameClickedForLeap(row1, column1)));
+                    i = row2;
+                    j = column2;
+                    qDebug() << "we are 'in LEAP' row,col=" << i << "," << j;
+                }
+            }
+        }
+        xy[row1][column1]->clicked(true);
         // ====== /HERE SHOULD BE CLICKING NEXT LEAP IF WE HAVE CHOSEN TO =====
 
         if (turn == 'B')
@@ -493,6 +567,7 @@ void MainWindow::game_leapDo(int row1, int column1, int row2, int column2)
             turn = 'B';
 
         game_moveCheck(row1, column1, row2, column2);
+        //here we probably should also not forget to send something to the server!
 
         if (leap == false)
         {
@@ -529,15 +604,57 @@ void MainWindow::game_kingCheck()
 
 void MainWindow::game_gameoverCheck()
 {
-    int blanks = 0;
+    int remaining_r = 0;
+    int remaining_b = 0;
 
     for (int i = 0; i < GAME_SIZE; i++)
+    {
         for (int j = 0; j < GAME_SIZE; j++)
-            if (xy[i][j]->text() != " ")
-                blanks++;
+        {
+            if (xy[i][j]->text() == "r" || xy[i][j]->text() == "R")
+                remaining_r++;
+            if (xy[i][j]->text() == "r" || xy[i][j]->text() == "R")
+                remaining_b++;
+        }
+    }
 
-    if (blanks > 1)
-        game_running = true;
-    else if (blanks == 1)
-        game_running = false;
+    if(remaining_b == 0 || remaining_r == 0)
+    {
+        game_running = 0;
+
+//        QMessageBox Box;
+//        if((remaining_b == 0 && turn == 'R') /*|| (remaining_b == 0 && turn == 'B')*/) {
+//            Box.setText("GAME OVER. Player 'B' won!");
+//            Box.exec();
+//        }
+//        else if((remaining_r == 0 && turn == 'B') /*|| (remaining_b == 0 && turn == 'R')*/){
+//            Box.setText("GAME OVER. Player 'R' won!");
+//            Box.exec();
+//        }
+//        else if((remaining_r == 0 && turn == 'B')) {
+//            Box.setText("Who won?");
+//            Box.exec();
+//        }
+        if((remaining_b == 0 || remaining_r == 0)) {
+//            Box.setText("GAME OVER!");
+//            Box.exec();
+            MsgAboutGame message;
+            message.happened = LOST_GAME;
+            message.x_old = x1;
+            message.y_old = y1;
+            message.x_new = x2;
+            message.y_new = y2;
+            char buffer[sizeof(MsgAboutGame)];
+            memcpy(buffer, &message, sizeof(MsgAboutGame));
+            this->socket->write(buffer, sizeof(MsgAboutGame));
+        }
+
+        //if(buttons_clicked==0)
+        //    this->socket->disconnectFromHost();   // <-- causes other player to not see who wins
+//        this->addressLineEdit->setEnabled(true);
+//        this->buttonConnect->setText("Connect to the server above");
+//        this->buttonConnect->setEnabled(true);
+//        game_clearBoard();                    // <-- rly?
+//        enableDisabledGame(false);
+    }
 }
