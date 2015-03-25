@@ -27,10 +27,10 @@ enum info{
 class MsgAboutGame{
 
 public:
-    char x_old;     // old 'x' position of draught
-    char y_old;     // old 'y' position of draught
-    char x_new;     // new 'x' position of draught
-    char y_new;     // new 'y' position of draught
+    char x_old;      // old 'x' position of draught
+    char y_old;      // old 'y' position of draught
+    char x_new;      // new 'x' position of draught
+    char y_new;      // new 'y' position of draught
     char x_beat;     // 'x' position of beated draught, if none=-1
     char y_beat;     // 'y' position of beated draught
     info happened;   // 2 server about client's state | definition above^
@@ -65,6 +65,7 @@ private:
 private slots:
     void onNewConnection();
     void onDisconnected();
+    bool game_moveCheck_simpleserverside(int row1, int column1, int row2, int column2);
     void readAnswer();
 };
 

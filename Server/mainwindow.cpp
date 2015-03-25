@@ -101,6 +101,44 @@ void MainWindow::onDisconnected()   /* on disconnection of client 0 or 1 */
     }
 }
 
+bool MainWindow::game_moveCheck_simpleserverside(int row1, int column1, int row2, int column2)
+{
+    // It checks if the piece isn't moving diagonally.
+    if (column1 == column2 || row1 == row2)
+    {
+        return false;
+    }
+
+    // It checks if the piece is moving by more than 1 column and only 1 row
+    if ((column2 > column1 + 1 || column2 < column1 - 1) && (row2 == row1 + 1 || row2 == row1 - 1))
+    {
+        return false;
+    }
+
+    // It checks if the piece is leaping.
+    if (row2 > row1 + 1 || row2 < row1 - 1)
+    {
+        // It checks if the piece is leaping too far.
+        if (row2 > row1 + 2 || row2 < row1 - 2)
+        {
+            return false;
+        }
+
+        // It checks if the piece isn't moving by exactly 2 columns
+        if (column2 != column1 + 2 && column2 != column1 - 2)
+        {
+            return false;
+        }
+
+        // Piece is not leaping too far.
+        return true;
+    }
+
+    // Piece is not leaping.
+    return true;
+}
+
+
 
 void MainWindow::readAnswer()   /* reads data sent from clients */
 {
@@ -126,21 +164,62 @@ void MainWindow::readAnswer()   /* reads data sent from clients */
         {
             case MOVE_MAKE:
             {
-                this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
-                /* here we print info on server's plainTextEdit */
-                if(msg.x_old < 0)
+                if(game_moveCheck_simpleserverside(msg.x_old, msg.y_old, msg.x_new, msg.y_new) == true)
                 {
-                    ui->plainTextEdit->appendPlainText(QString("END OF GAME! SOMEONE WON!"));
-                } else {
-                    ui->plainTextEdit->appendPlainText(QString("moved from  ") + QString::number(msg.x_old)
-                                                       + QString(":") + QString::number(msg.y_old)
-                                                       + QString("  =>  ") + QString::number(msg.x_new)
-                                                       + QString(":") + QString::number(msg.y_new));
+                    //HERE IS LEGAL MOVE DONE
+                    this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
+                    /* here we print info on server's plainTextEdit */
+                    if(msg.x_old < 0)
+                    {
+                        ui->plainTextEdit->appendPlainText(QString("END OF GAME! SOMEONE WON!"));
+                    } else {
+                        ui->plainTextEdit->appendPlainText(QString("moved from  ") + QString::number(msg.x_old)
+                                                           + QString(":") + QString::number(msg.y_old)
+                                                           + QString("  =>  ") + QString::number(msg.x_new)
+                                                           + QString(":") + QString::number(msg.y_new));
+                    }
+                    MsgAboutGame msg2;
+                    msg2.happened = YOUR_TURN_IS;
+                    memcpy(buf, &msg2, sizeof(MsgAboutGame));
+                    this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
                 }
-                MsgAboutGame msg2;
-                msg2.happened = YOUR_TURN_IS;
-                memcpy(buf, &msg2, sizeof(MsgAboutGame));
-                this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
+                else
+                {
+                    //HERE IS NOT LEGAL
+                    ui->plainTextEdit->appendPlainText(QString("ILLEGAL MOVE! SENDING SIGNALS TO DISCONNECT TO BOTH: "));
+                    // NOT REALLY ELSE_DISCONNECT, BUT "YOU_CHEATING"
+                    MsgAboutGame msg2;
+                    msg2.happened = ELSE_DISCONNECT;
+                    char buffer[sizeof(MsgAboutGame)];
+                    memcpy(buffer, &msg2, sizeof(MsgAboutGame));
+                    this->socket[id_sender]->write(buffer, sizeof(MsgAboutGame));
+                    this->socket[id_sender]->disconnect();
+                    this->socket[id_sender] = NULL;
+                    // NOW SAME TO SECOND ONE - which was waiting for it's turn
+                    MsgAboutGame msg3;
+                    msg3.happened = ELSE_DISCONNECT;    // NOT REALLY ELSE_DISCONNECT, BUT "YOU_CHEATING"
+                    char buffer3[sizeof(MsgAboutGame)];
+                    memcpy(buffer3, &msg3, sizeof(MsgAboutGame));
+                    this->socket[id_sender]->write(buffer3, sizeof(MsgAboutGame));
+                    this->socket[id_sender]->disconnect();
+                    this->socket[id_sender] = NULL;
+                }
+                /* OLD VERSION WITHOUT SEEING IF THERE IS A CHEAT from sender --- BELOW */
+//                this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
+//                /* here we print info on server's plainTextEdit */
+//                if(msg.x_old < 0)
+//                {
+//                    ui->plainTextEdit->appendPlainText(QString("END OF GAME! SOMEONE WON!"));
+//                } else {
+//                    ui->plainTextEdit->appendPlainText(QString("moved from  ") + QString::number(msg.x_old)
+//                                                       + QString(":") + QString::number(msg.y_old)
+//                                                       + QString("  =>  ") + QString::number(msg.x_new)
+//                                                       + QString(":") + QString::number(msg.y_new));
+//                }
+//                MsgAboutGame msg2;
+//                msg2.happened = YOUR_TURN_IS;
+//                memcpy(buf, &msg2, sizeof(MsgAboutGame));
+//                this->socket[id_opponent]->write(buf, sizeof(MsgAboutGame));
             }; break;
 
             case LOST_GAME:
