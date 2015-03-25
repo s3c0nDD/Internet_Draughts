@@ -23,4 +23,5 @@ $RECYCLE.BIN/
 # ---- my own addings!
 /Client/Client.pro.user*
 /Server/Server.pro.user*
-/SPRAWOZDANIE*
+*.pdf
+*.docx
