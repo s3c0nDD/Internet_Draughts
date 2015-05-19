@@ -564,6 +564,7 @@ void MainWindow::game_gameoverCheck()
     {
         for (int j = 0; j < GAME_SIZE; j++)
         {
+            // counting the remaining checkers on the game-table
             if (xy[i][j]->text() == "r" || xy[i][j]->text() == "R")
                 remaining_r++;
             if (xy[i][j]->text() == "b" || xy[i][j]->text() == "B")
@@ -573,7 +574,7 @@ void MainWindow::game_gameoverCheck()
 
     if (remaining_b == 0 || remaining_r == 0)
     {
-        game_running = 0;
+        game_running = false;
 
         if (remaining_b == 0 || remaining_r == 0) {
             MsgAboutGame message;
